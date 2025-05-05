@@ -19,7 +19,7 @@ interface WorkItem {
   issueKey: string;
   text: string;
   date: number;
-  durationSeconds: number;
+  durationMinutes: number;
 }
 
 const reportsDir = path.join(__dirname, 'reports');
@@ -37,7 +37,7 @@ function getLatestFile(directory: string): string | null {
 
 const parseDuration = (duration: string): number => {
   const [hours, minutes, seconds] = duration.split(':').map(Number);
-  return (hours * 3600) + (minutes * 60) + seconds;
+  return (hours * 60) + minutes + seconds / 60;
 };
 
 const parseDate = (dateStr: string): number => {
@@ -57,7 +57,7 @@ const createWorkItems = async (workItems: WorkItem[]) => {
         usesMarkdown: true,
         text: workItem.text,
         date: workItem.date,
-        duration: { seconds: workItem.durationSeconds },
+        duration: { minutes: workItem.durationMinutes },
       },
       {
         headers: {
@@ -93,11 +93,18 @@ const processCSV = async () => {
       const issueKey = extractIssueKey(row.Description);
       if (!issueKey) throw new Error(`Cannot parse issue key. Please check row with the next description: "${row.Description}"`);
 
+      const roundedDuration = Math.round(parseDuration(row.Duration));
+
+      if (roundedDuration === 0) {
+        console.error(`Too low duration for issue: ${issueKey}. Skipping work item creation. Original duration: ${row.Duration}`);
+        return;
+      }
+
       const workItem: WorkItem = {
         issueKey,
         text: row.Description,
         date: parseDate(row['Start date']),
-        durationSeconds: parseDuration(row.Duration),
+        durationMinutes: Math.round(parseDuration(row.Duration)),
       };
       workItems.push(workItem);
     })
